@@ -25,10 +25,24 @@ private val logger = KotlinLogging.logger {}
  */
 class NemligClient(private val config: NemligConfig) {
 
+    // Cookie jar for session management (like Python's requests.Session())
+    private val cookieJar = object : CookieJar {
+        private val cookieStore = mutableMapOf<String, List<Cookie>>()
+
+        override fun loadForRequest(url: HttpUrl): List<Cookie> {
+            return cookieStore[url.host] ?: emptyList()
+        }
+
+        override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
+            cookieStore[url.host] = cookies
+        }
+    }
+
     private val client: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(config.timeout, TimeUnit.MILLISECONDS)
         .readTimeout(config.timeout, TimeUnit.MILLISECONDS)
         .writeTimeout(config.timeout, TimeUnit.MILLISECONDS)
+        .cookieJar(cookieJar)  // Enable cookie-based session management
         .addInterceptor(LoggingInterceptor())
         .addInterceptor(RateLimitInterceptor(config.rateLimit))
         .build()
@@ -39,10 +53,10 @@ class NemligClient(private val config: NemligConfig) {
         isLenient = true
     }
 
-    private var authToken: String? = null
-
     /**
      * Authenticate with Nemlig API
+     * Endpoint discovered from: https://github.com/schourode/nemlig
+     * Uses cookie-based authentication (session cookies stored in CookieJar)
      */
     suspend fun authenticate(): Result<String> {
         logger.info { "Authenticating with Nemlig API..." }
@@ -51,31 +65,39 @@ class NemligClient(private val config: NemligConfig) {
             return Result.failure(IllegalStateException("Username and password must be configured"))
         }
 
-        // TODO: Implement actual authentication flow
-        // This is a placeholder - you'll need to reverse-engineer the actual auth endpoint
         return try {
+            // Actual endpoint: POST /login/login
+            // Request format from reverse-engineered Python implementation
             val requestBody = """
                 {
-                    "username": "${config.username}",
-                    "password": "${config.password}"
+                    "Username": "${config.username}",
+                    "Password": "${config.password}",
+                    "AppInstalled": false,
+                    "AutoLogin": false,
+                    "CheckForExistingProducts": true,
+                    "DoMerge": true
                 }
             """.trimIndent()
 
             val request = Request.Builder()
-                .url("${config.apiUrl}/auth/login")
+                .url("${config.apiUrl}/login/login")
                 .post(requestBody.toRequestBody("application/json".toMediaType()))
+                .addHeader("Accept", "application/json")
                 .build()
 
+            logger.debug { "Sending login request to ${request.url}" }
             val response = client.newCall(request).execute()
 
             if (response.isSuccessful) {
-                val token = response.body?.string() ?: ""
-                authToken = token
-                logger.info { "Authentication successful" }
-                Result.success(token)
+                val responseBody = response.body?.string() ?: ""
+                logger.debug { "Login response: $responseBody" }
+                logger.info { "Authentication successful - session cookies stored" }
+                // Authentication is cookie-based, cookies are automatically stored in CookieJar
+                Result.success("authenticated")
             } else {
-                logger.error { "Authentication failed: ${response.code} ${response.message}" }
-                Result.failure(IOException("Authentication failed: ${response.message}"))
+                val errorBody = response.body?.string() ?: "Unknown error"
+                logger.error { "Authentication failed: ${response.code} - $errorBody" }
+                Result.failure(IOException("Authentication failed: ${response.code} - ${response.message}"))
             }
         } catch (e: Exception) {
             logger.error(e) { "Authentication error" }
@@ -85,6 +107,8 @@ class NemligClient(private val config: NemligConfig) {
 
     /**
      * Search for products
+     * Endpoint discovered from: https://github.com/schourode/nemlig
+     * GET /s/0/1/0/Search/Search?query={query}&take={limit}
      */
     suspend fun searchProducts(
         query: String,
@@ -93,23 +117,33 @@ class NemligClient(private val config: NemligConfig) {
     ): Result<SearchResult> {
         logger.info { "Searching products: query='$query', limit=$limit, page=$page" }
 
-        // TODO: Implement actual product search endpoint
-        // This is a placeholder - you'll need to reverse-engineer the actual endpoint
         return try {
+            // Actual endpoint: GET /s/0/1/0/Search/Search
             val url = HttpUrl.Builder()
                 .scheme("https")
-                .host(config.apiUrl.removePrefix("https://"))
-                .addPathSegment("search")
-                .addQueryParameter("q", query)
-                .addQueryParameter("limit", limit.toString())
-                .addQueryParameter("page", page.toString())
+                .host("www.nemlig.com")
+                .addPathSegment("webapi")
+                .addPathSegment("s")
+                .addPathSegment("0")
+                .addPathSegment("1")
+                .addPathSegment("0")
+                .addPathSegment("Search")
+                .addPathSegment("Search")
+                .addQueryParameter("query", query)
+                .addQueryParameter("take", limit.toString())
                 .build()
 
             val request = buildAuthenticatedRequest(url)
+            logger.debug { "Search request: ${request.url}" }
             val response = client.newCall(request).execute()
 
             if (response.isSuccessful) {
-                // For now, return mock data
+                val responseBody = response.body?.string() ?: ""
+                logger.debug { "Search response received: ${responseBody.take(200)}..." }
+
+                // TODO: Parse actual response format
+                // For now, return the raw response data
+                // You'll need to inspect the actual response structure and update SearchResult model
                 val mockResult = SearchResult(
                     query = query,
                     products = emptyList(),
@@ -120,6 +154,8 @@ class NemligClient(private val config: NemligConfig) {
                 logger.info { "Search completed: ${mockResult.totalResults} results" }
                 Result.success(mockResult)
             } else {
+                val errorBody = response.body?.string() ?: "Unknown error"
+                logger.error { "Search failed: ${response.code} - $errorBody" }
                 Result.failure(IOException("Search failed: ${response.message}"))
             }
         } catch (e: Exception) {
@@ -180,13 +216,42 @@ class NemligClient(private val config: NemligConfig) {
 
     /**
      * Add item to cart
+     * Endpoint discovered from: https://github.com/schourode/nemlig
+     * POST /basket/AddToBasket
      */
     suspend fun addToCart(productId: String, quantity: Int): Result<Cart> {
         logger.info { "Adding to cart: productId=$productId, quantity=$quantity" }
 
-        // TODO: Implement actual add to cart endpoint
         return try {
-            Result.success(Cart(emptyList(), 0.0, 0))
+            // Actual endpoint: POST /basket/AddToBasket
+            val requestBody = """
+                {
+                    "productId": "$productId",
+                    "quantity": $quantity
+                }
+            """.trimIndent()
+
+            val request = Request.Builder()
+                .url("${config.apiUrl}/basket/AddToBasket")
+                .post(requestBody.toRequestBody("application/json".toMediaType()))
+                .addHeader("Accept", "application/json")
+                .build()
+
+            logger.debug { "Add to cart request: ${request.url}" }
+            val response = client.newCall(request).execute()
+
+            if (response.isSuccessful) {
+                val responseBody = response.body?.string() ?: ""
+                logger.debug { "Add to cart response: $responseBody" }
+                logger.info { "Successfully added $quantity item(s) to cart" }
+
+                // TODO: Parse actual cart response and return updated cart
+                Result.success(Cart(emptyList(), 0.0, 0))
+            } else {
+                val errorBody = response.body?.string() ?: "Unknown error"
+                logger.error { "Add to cart failed: ${response.code} - $errorBody" }
+                Result.failure(IOException("Add to cart failed: ${response.message}"))
+            }
         } catch (e: Exception) {
             logger.error(e) { "Add to cart error" }
             Result.failure(e)
@@ -210,13 +275,42 @@ class NemligClient(private val config: NemligConfig) {
 
     /**
      * Get order history
+     * Endpoint discovered from: https://github.com/schourode/nemlig
+     * GET /order/GetBasicOrderHistory?skip={skip}&take={limit}
      */
     suspend fun getOrders(limit: Int = 10): Result<List<Order>> {
         logger.info { "Getting order history: limit=$limit" }
 
-        // TODO: Implement actual orders endpoint
         return try {
-            Result.success(emptyList())
+            // Actual endpoint: GET /order/GetBasicOrderHistory
+            val url = HttpUrl.Builder()
+                .scheme("https")
+                .host("www.nemlig.com")
+                .addPathSegment("webapi")
+                .addPathSegment("order")
+                .addPathSegment("GetBasicOrderHistory")
+                .addQueryParameter("skip", "0")
+                .addQueryParameter("take", limit.toString())
+                .build()
+
+            val request = buildAuthenticatedRequest(url)
+            logger.debug { "Get orders request: ${request.url}" }
+            val response = client.newCall(request).execute()
+
+            if (response.isSuccessful) {
+                val responseBody = response.body?.string() ?: ""
+                logger.debug { "Orders response received: ${responseBody.take(200)}..." }
+
+                // TODO: Parse actual response format
+                // For now, return empty list
+                // You'll need to inspect the actual response structure and update Order model
+                logger.info { "Retrieved order history" }
+                Result.success(emptyList())
+            } else {
+                val errorBody = response.body?.string() ?: "Unknown error"
+                logger.error { "Get orders failed: ${response.code} - $errorBody" }
+                Result.failure(IOException("Get orders failed: ${response.message}"))
+            }
         } catch (e: Exception) {
             logger.error(e) { "Get orders error" }
             Result.failure(e)
@@ -240,15 +334,13 @@ class NemligClient(private val config: NemligConfig) {
 
     /**
      * Build an authenticated request
+     * Authentication is handled via cookies stored in CookieJar after login
      */
     private fun buildAuthenticatedRequest(url: HttpUrl): Request {
-        val builder = Request.Builder().url(url)
-
-        authToken?.let {
-            builder.addHeader("Authorization", "Bearer $it")
-        }
-
-        return builder.build()
+        return Request.Builder()
+            .url(url)
+            .addHeader("Accept", "application/json")
+            .build()
     }
 
     /**

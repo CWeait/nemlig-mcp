@@ -12,7 +12,7 @@ data class Config(
  * Nemlig API configuration
  */
 data class NemligConfig(
-    val apiUrl: String = "https://webapi.prod.knl.nemlig.it",
+    val apiUrl: String = "https://www.nemlig.com/webapi",
     val username: String? = null,
     val password: String? = null,
     val timeout: Long = 30000L,
@@ -21,10 +21,11 @@ data class NemligConfig(
 
 /**
  * Rate limiting configuration
+ * Default: 1 request per second (matching Python implementation's rate limiting)
  */
 data class RateLimitConfig(
-    val requestsPerSecond: Int = 5,
-    val burstSize: Int = 10
+    val requestsPerSecond: Int = 1,
+    val burstSize: Int = 2
 )
 
 /**
@@ -45,7 +46,7 @@ object ConfigLoader {
         return Config(
             nemlig = NemligConfig(
                 apiUrl = System.getenv("NEMLIG_API_URL")
-                    ?: "https://webapi.prod.knl.nemlig.it",
+                    ?: "https://www.nemlig.com/webapi",
                 username = System.getenv("NEMLIG_USERNAME"),
                 password = System.getenv("NEMLIG_PASSWORD"),
                 timeout = System.getenv("NEMLIG_TIMEOUT")?.toLongOrNull() ?: 30000L
