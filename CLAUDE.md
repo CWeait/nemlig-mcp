@@ -25,40 +25,47 @@ This document provides comprehensive guidance for AI assistants working on this 
 
 ## Project Structure
 
-### Expected Directory Layout
+### Actual Directory Layout (Kotlin)
 
 ```
 nemlig-mcp/
 ├── src/
-│   ├── index.ts           # Main entry point
-│   ├── server.ts          # MCP server implementation
-│   ├── tools/             # MCP tool implementations
-│   ├── resources/         # MCP resource handlers
-│   ├── prompts/           # MCP prompt templates
-│   ├── types/             # TypeScript type definitions
-│   └── utils/             # Utility functions
-├── tests/
-│   ├── unit/              # Unit tests
-│   ├── integration/       # Integration tests
-│   └── fixtures/          # Test fixtures
-├── docs/
-│   └── api.md             # API documentation
-├── .github/
-│   └── workflows/         # CI/CD workflows
-├── package.json
-├── tsconfig.json
-├── .eslintrc.js
-├── .prettierrc
-├── README.md
-└── CLAUDE.md              # This file
+│   ├── main/
+│   │   ├── kotlin/com/nemlig/mcp/
+│   │   │   ├── server/          # MCP server implementation
+│   │   │   │   ├── Main.kt      # Entry point
+│   │   │   │   └── NemligMcpServer.kt
+│   │   │   ├── client/          # Nemlig API client
+│   │   │   │   └── NemligClient.kt
+│   │   │   ├── tools/           # MCP tool implementations
+│   │   │   │   └── NemligTools.kt
+│   │   │   ├── models/          # Data models
+│   │   │   │   └── Models.kt
+│   │   │   └── config/          # Configuration
+│   │   │       └── Config.kt
+│   │   └── resources/
+│   │       └── logback.xml      # Logging configuration
+│   └── test/
+│       └── kotlin/com/nemlig/mcp/
+│           └── ConfigTest.kt    # Tests
+├── build.gradle.kts             # Gradle build configuration
+├── settings.gradle.kts          # Gradle settings
+├── gradle.properties            # Gradle properties
+├── .env.example                 # Environment template
+├── .gitignore                   # Git ignore rules
+├── README.md                    # User documentation
+└── CLAUDE.md                    # This file
 ```
 
 ### Key Files
 
-- **package.json**: Project dependencies and scripts
-- **tsconfig.json**: TypeScript configuration
-- **src/server.ts**: Core MCP server logic
-- **src/tools/**: Each tool should be in its own file
+- **build.gradle.kts**: Project dependencies and Gradle configuration
+- **src/main/kotlin/.../server/Main.kt**: Entry point for the server
+- **src/main/kotlin/.../server/NemligMcpServer.kt**: Core MCP server logic
+- **src/main/kotlin/.../client/NemligClient.kt**: HTTP client for Nemlig API
+- **src/main/kotlin/.../tools/NemligTools.kt**: MCP tool implementations
+- **src/main/kotlin/.../models/Models.kt**: Data models for products, cart, orders
+- **.env.example**: Environment variable template
 - **README.md**: User-facing documentation
 
 ---
@@ -67,34 +74,30 @@ nemlig-mcp/
 
 ### Initial Setup
 
-When setting up the project for the first time:
+The project is already configured! But if setting up from scratch:
 
-1. **Initialize Package Structure**
+1. **Prerequisites**
    ```bash
-   npm init -y
-   npm install @modelcontextprotocol/sdk
-   npm install -D typescript @types/node
-   npm install -D eslint prettier
-   npm install -D jest @types/jest ts-jest
+   # Verify Java 17+
+   java -version
+
+   # Gradle wrapper is included
+   ./gradlew --version
    ```
 
-2. **Configure TypeScript**
-   - Use `strict` mode
-   - Target ES2022 or later
-   - Enable `esModuleInterop`
-   - Set `outDir` to `dist/`
+2. **Dependencies** (already in build.gradle.kts)
+   - MCP Kotlin SDK: `io.modelcontextprotocol:kotlin-sdk`
+   - OkHttp for HTTP client
+   - Kotlinx Serialization for JSON
+   - Kotlinx Coroutines for async operations
+   - Logback for logging
 
-3. **Set up Build Scripts**
-   ```json
-   {
-     "scripts": {
-       "build": "tsc",
-       "dev": "tsc --watch",
-       "test": "jest",
-       "lint": "eslint src/**/*.ts",
-       "format": "prettier --write src/**/*.ts"
-     }
-   }
+3. **Build Commands**
+   ```bash
+   ./gradlew build          # Build the project
+   ./gradlew run            # Run the server
+   ./gradlew test           # Run tests
+   ./gradlew clean          # Clean build artifacts
    ```
 
 ### Development Cycle
@@ -111,51 +114,54 @@ When setting up the project for the first time:
    - Add appropriate error handling
 
 3. **After Changes**
-   - Run tests: `npm test`
-   - Check types: `npm run build`
-   - Lint code: `npm run lint`
-   - Format code: `npm run format`
+   - Run tests: `./gradlew test`
+   - Check compilation: `./gradlew build`
+   - Run the server: `./gradlew run`
+   - Clean build: `./gradlew clean build`
 
 ---
 
 ## Code Conventions
 
-### TypeScript Guidelines
+### Kotlin Guidelines
 
 1. **Type Safety**
-   - Always use explicit types for function parameters and return values
-   - Avoid `any` - use `unknown` if type is truly unknown
-   - Use union types and type guards appropriately
-   - Define interfaces for all data structures
+   - Use explicit types for public function parameters and return values
+   - Avoid `Any` - use specific types or sealed classes
+   - Use nullable types (`T?`) appropriately
+   - Define data classes for all data structures
+   - Use sealed classes for restricted hierarchies
 
 2. **Naming Conventions**
-   - **Files**: kebab-case (`order-tool.ts`)
-   - **Classes**: PascalCase (`OrderManager`)
+   - **Files**: PascalCase matching the main class (`NemligClient.kt`)
+   - **Classes**: PascalCase (`NemligClient`)
    - **Functions**: camelCase (`getOrderDetails`)
    - **Constants**: UPPER_SNAKE_CASE (`MAX_RETRIES`)
-   - **Interfaces**: PascalCase, prefix with `I` if ambiguous (`IOrderData`)
+   - **Data Classes**: PascalCase (`Product`, `Order`)
+   - **Properties**: camelCase (`productId`, `userName`)
 
 3. **Function Structure**
-   ```typescript
+   ```kotlin
    /**
     * Brief description of what the function does
-    * @param paramName - Description
-    * @returns Description of return value
-    * @throws Description of errors thrown
+    *
+    * @param paramName Description of parameter
+    * @return Description of return value
+    * @throws Exception Description of errors thrown
     */
-   export async function functionName(
-     paramName: ParamType
-   ): Promise<ReturnType> {
-     // Input validation
-     if (!paramName) {
-       throw new Error('paramName is required');
-     }
+   suspend fun functionName(
+       paramName: ParamType
+   ): Result<ReturnType> {
+       // Input validation
+       require(paramName.isNotBlank()) { "paramName is required" }
 
-     // Main logic
-     const result = await someOperation(paramName);
-
-     // Return
-     return result;
+       // Main logic
+       return try {
+           val result = someOperation(paramName)
+           Result.success(result)
+       } catch (e: Exception) {
+           Result.failure(e)
+       }
    }
    ```
 
@@ -179,19 +185,23 @@ When setting up the project for the first time:
    - Keep files under 300 lines when possible
 
 2. **Import Organization**
-   ```typescript
-   // 1. External dependencies
-   import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+   ```kotlin
+   package com.nemlig.mcp.server
 
-   // 2. Internal modules
-   import { OrderTool } from './tools/order-tool.js';
-   import { ProductTool } from './tools/product-tool.js';
+   // 1. External dependencies (sorted alphabetically)
+   import io.modelcontextprotocol.kotlin.sdk.*
+   import kotlinx.coroutines.runBlocking
+   import kotlinx.serialization.json.*
+   import mu.KotlinLogging
+   import okhttp3.*
 
-   // 3. Types
-   import type { OrderData, ProductData } from './types/index.js';
+   // 2. Internal modules (sorted alphabetically)
+   import com.nemlig.mcp.client.NemligClient
+   import com.nemlig.mcp.config.Config
+   import com.nemlig.mcp.tools.NemligTools
 
-   // 4. Utilities
-   import { logger } from './utils/logger.js';
+   // 3. Models
+   import com.nemlig.mcp.models.*
    ```
 
 3. **Comments**
@@ -206,72 +216,66 @@ When setting up the project for the first time:
 
 ### Server Implementation
 
-1. **Server Initialization**
-   ```typescript
-   import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-   import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+1. **Server Initialization** (Kotlin)
+   ```kotlin
+   // See src/main/kotlin/com/nemlig/mcp/server/NemligMcpServer.kt
+   class NemligMcpServer(private val config: Config) {
+       private val client = NemligClient(config.nemlig)
+       private val tools = NemligTools(client)
 
-   const server = new Server(
-     {
-       name: 'nemlig-mcp',
-       version: '1.0.0',
-     },
-     {
-       capabilities: {
-         tools: {},
-         resources: {},
-         prompts: {},
-       },
-     }
-   );
+       fun getServerInfo(): ServerInfo {
+           return ServerInfo(
+               name = config.server.name,
+               version = config.server.version
+           )
+       }
+   }
    ```
 
-2. **Tool Registration**
+2. **Tool Registration** (Kotlin)
    - Each tool should have a clear, descriptive name
    - Provide comprehensive input schemas
    - Include detailed descriptions for AI understanding
    - Return structured, consistent results
 
-   ```typescript
-   server.setRequestHandler(ListToolsRequestSchema, async () => {
-     return {
-       tools: [
-         {
-           name: 'search_products',
-           description: 'Search for products in the Nemlig catalog',
-           inputSchema: {
-             type: 'object',
-             properties: {
-               query: {
-                 type: 'string',
-                 description: 'Search query for products',
-               },
-               limit: {
-                 type: 'number',
-                 description: 'Maximum number of results',
-                 default: 10,
-               },
-             },
-             required: ['query'],
-           },
-         },
-       ],
-     };
-   });
+   ```kotlin
+   fun listTools(): List<Tool> = listOf(
+       Tool(
+           name = "search_products",
+           description = "Search for products in the Nemlig catalog",
+           inputSchema = buildJsonObject {
+               put("type", "object")
+               putJsonObject("properties") {
+                   putJsonObject("query") {
+                       put("type", "string")
+                       put("description", "Search query for products")
+                   }
+                   putJsonObject("limit") {
+                       put("type", "number")
+                       put("description", "Maximum number of results")
+                       put("default", 20)
+                   }
+               }
+               putJsonArray("required") { add("query") }
+           }
+       )
+   )
    ```
 
-3. **Tool Implementation**
-   ```typescript
-   server.setRequestHandler(CallToolRequestSchema, async (request) => {
-     const { name, arguments: args } = request.params;
-
-     switch (name) {
-       case 'search_products':
-         return await handleSearchProducts(args);
-       default:
-         throw new Error(`Unknown tool: ${name}`);
-     }
-   });
+3. **Tool Implementation** (Kotlin)
+   ```kotlin
+   suspend fun callTool(name: String, arguments: JsonObject): JsonElement {
+       return when (name) {
+           "search_products" -> tools.searchProducts(arguments)
+           "get_product_details" -> tools.getProductDetails(arguments)
+           "view_cart" -> tools.viewCart(arguments)
+           "add_to_cart" -> tools.addToCart(arguments)
+           else -> buildJsonObject {
+               put("success", false)
+               put("error", "Unknown tool: $name")
+           }
+       }
+   }
    ```
 
 ### Resource Handling
@@ -310,31 +314,31 @@ When setting up the project for the first time:
 
 ### Unit Tests
 
-1. **Test Structure**
-   ```typescript
-   describe('OrderTool', () => {
-     describe('getOrderDetails', () => {
-       it('should return order details for valid order ID', async () => {
-         // Arrange
-         const orderId = '12345';
+1. **Test Structure** (Kotlin)
+   ```kotlin
+   class NemligClientTest {
+       @Test
+       fun `should load default configuration`() {
+           // Arrange & Act
+           val config = ConfigLoader.load()
 
-         // Act
-         const result = await getOrderDetails(orderId);
+           // Assert
+           assertNotNull(config)
+           assertEquals("nemlig-mcp", config.server.name)
+       }
 
-         // Assert
-         expect(result).toBeDefined();
-         expect(result.orderId).toBe(orderId);
-       });
+       @Test
+       fun `should handle failed authentication`() = runTest {
+           // Arrange
+           val client = NemligClient(mockConfig)
 
-       it('should throw error for invalid order ID', async () => {
-         // Arrange
-         const invalidId = 'invalid';
+           // Act
+           val result = client.authenticate()
 
-         // Act & Assert
-         await expect(getOrderDetails(invalidId)).rejects.toThrow();
-       });
-     });
-   });
+           // Assert
+           assertTrue(result.isFailure)
+       }
+   }
    ```
 
 2. **Test Coverage**
@@ -549,4 +553,44 @@ When setting up the project for the first time:
 
 **Last Updated:** 2026-01-23
 **Version:** 1.0.0
-**Status:** Initial Documentation for New Project
+**Status:** Kotlin Implementation Complete - API Integration Pending
+
+## Current Implementation Status
+
+✅ **Completed:**
+- Kotlin project structure with Gradle
+- MCP server framework
+- Tool definitions (7 tools)
+- Nemlig API client structure
+- Data models
+- Configuration system
+- Logging setup
+- Basic tests
+- Comprehensive documentation
+
+🚧 **Pending:**
+- Reverse engineer Nemlig.com API endpoints
+- Implement actual API calls in NemligClient.kt
+- Integrate MCP Kotlin SDK stdio transport
+- Add comprehensive test coverage
+- Implement authentication flow
+- Add more error handling
+
+## Quick Start for AI Assistants
+
+When working on this codebase:
+
+1. **Before API Implementation:**
+   - Review network traffic from nemlig.com
+   - Document API endpoints in comments
+   - Update NemligClient.kt with actual endpoints
+
+2. **Key Files to Modify:**
+   - `NemligClient.kt` - Add actual API implementations
+   - `Models.kt` - Adjust to match real API responses
+   - `Main.kt` - Integrate MCP SDK stdio transport
+
+3. **Testing:**
+   - Run `./gradlew test` after changes
+   - Add tests in `src/test/kotlin/`
+   - Mock HTTP responses for testing
