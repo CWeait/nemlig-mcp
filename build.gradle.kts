@@ -1,6 +1,6 @@
 plugins {
-    kotlin("jvm") version "1.9.10"
-    kotlin("plugin.serialization") version "1.9.10"
+    kotlin("jvm") version "1.9.23"
+    kotlin("plugin.serialization") version "1.9.23"
     application
 }
 
@@ -56,4 +56,12 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
         freeCompilerArgs += "-Xjsr305=strict"
         jvmTarget = "17"
     }
+}
+
+// Custom task to run manual API tests
+tasks.register<JavaExec>("testApi") {
+    group = "verification"
+    description = "Run manual API tests to verify Nemlig endpoints"
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("com.nemlig.mcp.test.ManualTestKt")
 }
