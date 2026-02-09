@@ -57,3 +57,11 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
         jvmTarget = "17"
     }
 }
+
+// Custom task to run manual API tests
+tasks.register<JavaExec>("testApi") {
+    group = "verification"
+    description = "Run manual API tests to verify Nemlig endpoints"
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("com.nemlig.mcp.test.ManualTestKt")
+}
