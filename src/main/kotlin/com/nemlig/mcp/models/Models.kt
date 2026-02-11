@@ -103,19 +103,6 @@ enum class OrderStatus(val code: Int) {
 }
 
 /**
- * Delivery slot model
- */
-@Serializable
-data class DeliverySlot(
-    val id: String,
-    val date: String,
-    val timeFrom: String,
-    val timeTo: String,
-    val available: Boolean = true,
-    val price: Double = 0.0
-)
-
-/**
  * Search result model
  */
 @Serializable

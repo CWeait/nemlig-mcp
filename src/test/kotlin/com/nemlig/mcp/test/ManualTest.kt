@@ -114,18 +114,5 @@ fun main() = runBlocking {
         onFailure = { println("❌ Remove from cart failed: ${it.message}\n") }
     )
 
-    // Test 8: Get Delivery Slots
-    println("Test 8: Get delivery slots")
-    client.getDeliverySlots().fold(
-        onSuccess = {
-            println("✅ Delivery slots retrieved: ${it.size}")
-            it.take(3).forEach { slot ->
-                println("   - ${slot.date} ${slot.timeFrom}-${slot.timeTo} (${slot.price} kr)")
-            }
-            println()
-        },
-        onFailure = { println("❌ Get delivery slots failed: ${it.message}\n") }
-    )
-
     println("=== Tests Complete ===")
 }
