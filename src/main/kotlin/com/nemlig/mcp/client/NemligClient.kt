@@ -2,7 +2,6 @@ package com.nemlig.mcp.client
 
 import com.nemlig.mcp.config.NemligConfig
 import com.nemlig.mcp.models.*
-import com.nemlig.mcp.tools.Result
 import kotlinx.serialization.json.Json
 import mu.KotlinLogging
 import okhttp3.*
@@ -63,7 +62,7 @@ class NemligClient(private val config: NemligConfig) {
         logger.info { "Authenticating with Nemlig API..." }
 
         if (config.username.isNullOrBlank() || config.password.isNullOrBlank()) {
-            return Result.Failure(IllegalStateException("Username and password must be configured"))
+            return Result.failure(IllegalStateException("Username and password must be configured"))
         }
 
         return try {
@@ -94,15 +93,15 @@ class NemligClient(private val config: NemligConfig) {
                 logger.debug { "Login response: $responseBody" }
                 logger.info { "Authentication successful - session cookies stored" }
                 // Authentication is cookie-based, cookies are automatically stored in CookieJar
-                Result.Success("authenticated")
+                Result.success("authenticated")
             } else {
                 val errorBody = response.body?.string() ?: "Unknown error"
                 logger.error { "Authentication failed: ${response.code} - $errorBody" }
-                Result.Failure(IOException("Authentication failed: ${response.code} - ${response.message}"))
+                Result.failure(IOException("Authentication failed: ${response.code} - ${response.message}"))
             }
         } catch (e: Exception) {
             logger.error(e) { "Authentication error" }
-            Result.Failure(e)
+            Result.failure(e)
         }
     }
 
@@ -153,15 +152,15 @@ class NemligClient(private val config: NemligConfig) {
                     pageSize = limit
                 )
                 logger.info { "Search completed: ${mockResult.totalResults} results" }
-                Result.Success(mockResult)
+                Result.success(mockResult)
             } else {
                 val errorBody = response.body?.string() ?: "Unknown error"
                 logger.error { "Search failed: ${response.code} - $errorBody" }
-                Result.Failure(IOException("Search failed: ${response.message}"))
+                Result.failure(IOException("Search failed: ${response.message}"))
             }
         } catch (e: Exception) {
             logger.error(e) { "Search error" }
-            Result.Failure(e)
+            Result.failure(e)
         }
     }
 
@@ -185,13 +184,13 @@ class NemligClient(private val config: NemligConfig) {
                     price = 0.0,
                     inStock = true
                 )
-                Result.Success(mockProduct)
+                Result.success(mockProduct)
             } else {
-                Result.Failure(IOException("Failed to get product: ${response.message}"))
+                Result.failure(IOException("Failed to get product: ${response.message}"))
             }
         } catch (e: Exception) {
             logger.error(e) { "Get product error" }
-            Result.Failure(e)
+            Result.failure(e)
         }
     }
 
@@ -208,10 +207,10 @@ class NemligClient(private val config: NemligConfig) {
                 totalPrice = 0.0,
                 itemCount = 0
             )
-            Result.Success(mockCart)
+            Result.success(mockCart)
         } catch (e: Exception) {
             logger.error(e) { "Get cart error" }
-            Result.Failure(e)
+            Result.failure(e)
         }
     }
 
@@ -247,15 +246,15 @@ class NemligClient(private val config: NemligConfig) {
                 logger.info { "Successfully added $quantity item(s) to cart" }
 
                 // TODO: Parse actual cart response and return updated cart
-                Result.Success(Cart(emptyList(), 0.0, 0))
+                Result.success(Cart(emptyList(), 0.0, 0))
             } else {
                 val errorBody = response.body?.string() ?: "Unknown error"
                 logger.error { "Add to cart failed: ${response.code} - $errorBody" }
-                Result.Failure(IOException("Add to cart failed: ${response.message}"))
+                Result.failure(IOException("Add to cart failed: ${response.message}"))
             }
         } catch (e: Exception) {
             logger.error(e) { "Add to cart error" }
-            Result.Failure(e)
+            Result.failure(e)
         }
     }
 
@@ -267,10 +266,10 @@ class NemligClient(private val config: NemligConfig) {
 
         // TODO: Implement actual remove from cart endpoint
         return try {
-            Result.Success(Cart(emptyList(), 0.0, 0))
+            Result.success(Cart(emptyList(), 0.0, 0))
         } catch (e: Exception) {
             logger.error(e) { "Remove from cart error" }
-            Result.Failure(e)
+            Result.failure(e)
         }
     }
 
@@ -306,15 +305,15 @@ class NemligClient(private val config: NemligConfig) {
                 // For now, return empty list
                 // You'll need to inspect the actual response structure and update Order model
                 logger.info { "Retrieved order history" }
-                Result.Success(emptyList())
+                Result.success(emptyList())
             } else {
                 val errorBody = response.body?.string() ?: "Unknown error"
                 logger.error { "Get orders failed: ${response.code} - $errorBody" }
-                Result.Failure(IOException("Get orders failed: ${response.message}"))
+                Result.failure(IOException("Get orders failed: ${response.message}"))
             }
         } catch (e: Exception) {
             logger.error(e) { "Get orders error" }
-            Result.Failure(e)
+            Result.failure(e)
         }
     }
 
@@ -326,10 +325,10 @@ class NemligClient(private val config: NemligConfig) {
 
         // TODO: Implement actual delivery slots endpoint
         return try {
-            Result.Success(emptyList())
+            Result.success(emptyList())
         } catch (e: Exception) {
             logger.error(e) { "Get delivery slots error" }
-            Result.Failure(e)
+            Result.failure(e)
         }
     }
 
