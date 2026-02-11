@@ -185,18 +185,15 @@ class NemligTools(private val client: NemligClient) {
                         orders.forEach { order ->
                             addJsonObject {
                                 put("id", order.id)
+                                put("orderNumber", order.orderNumber)
                                 put("date", order.date)
                                 put("status", order.status.name)
                                 put("totalPrice", order.totalPrice)
-                                putJsonArray("items") {
-                                    order.items.forEach { item ->
-                                        addJsonObject {
-                                            put("productName", item.productName)
-                                            put("quantity", item.quantity)
-                                            put("price", item.price)
-                                        }
-                                    }
-                                }
+                                put("subTotal", order.subTotal)
+                                order.deliveryAddress?.let { put("deliveryAddress", it) }
+                                order.deliveryTime?.let { put("deliveryTime", it) }
+                                put("isEditable", order.isEditable)
+                                put("isCancellable", order.isCancellable)
                             }
                         }
                     }

@@ -2,7 +2,7 @@ package com.nemlig.mcp.client
 
 import com.nemlig.mcp.config.NemligConfig
 import com.nemlig.mcp.models.*
-import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.*
 import mu.KotlinLogging
 import okhttp3.*
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -34,7 +34,11 @@ class NemligClient(private val config: NemligConfig) {
         }
 
         override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
-            cookieStore[url.host] = cookies
+            val existing = cookieStore[url.host].orEmpty().associateBy { it.name }.toMutableMap()
+            for (cookie in cookies) {
+                existing[cookie.name] = cookie
+            }
+            cookieStore[url.host] = existing.values.toList()
         }
     }
 
@@ -139,20 +143,36 @@ class NemligClient(private val config: NemligConfig) {
 
             if (response.isSuccessful) {
                 val responseBody = response.body?.string() ?: ""
-                logger.debug { "Search response received: ${responseBody.take(200)}..." }
+                val jsonRoot = json.parseToJsonElement(responseBody).jsonObject
+                val productsObj = jsonRoot["Products"]?.jsonObject
+                val productsArray = productsObj?.get("Products")?.jsonArray ?: JsonArray(emptyList())
+                val numFound = productsObj?.get("NumFound")?.jsonPrimitive?.intOrNull ?: 0
 
-                // TODO: Parse actual response format
-                // For now, return the raw response data
-                // You'll need to inspect the actual response structure and update SearchResult model
-                val mockResult = SearchResult(
+                val products = productsArray.map { element ->
+                    val obj = element.jsonObject
+                    val availability = obj["Availability"]?.jsonObject
+                    Product(
+                        id = obj["Id"]?.jsonPrimitive?.content ?: "",
+                        name = obj["Name"]?.jsonPrimitive?.content ?: "",
+                        price = obj["Price"]?.jsonPrimitive?.doubleOrNull ?: 0.0,
+                        unit = obj["UnitPriceLabel"]?.jsonPrimitive?.contentOrNull,
+                        brand = obj["Brand"]?.jsonPrimitive?.contentOrNull,
+                        category = obj["Category"]?.jsonPrimitive?.contentOrNull,
+                        imageUrl = obj["PrimaryImage"]?.jsonPrimitive?.contentOrNull,
+                        description = obj["Description"]?.jsonPrimitive?.contentOrNull,
+                        inStock = availability?.get("IsAvailableInStock")?.jsonPrimitive?.booleanOrNull ?: true
+                    )
+                }
+
+                val result = SearchResult(
                     query = query,
-                    products = emptyList(),
-                    totalResults = 0,
+                    products = products,
+                    totalResults = numFound,
                     page = page,
                     pageSize = limit
                 )
-                logger.info { "Search completed: ${mockResult.totalResults} results" }
-                Result.success(mockResult)
+                logger.info { "Search completed: ${result.totalResults} results" }
+                Result.success(result)
             } else {
                 val errorBody = response.body?.string() ?: "Unknown error"
                 logger.error { "Search failed: ${response.code} - $errorBody" }
@@ -299,13 +319,34 @@ class NemligClient(private val config: NemligConfig) {
 
             if (response.isSuccessful) {
                 val responseBody = response.body?.string() ?: ""
-                logger.debug { "Orders response received: ${responseBody.take(200)}..." }
+                val jsonRoot = json.parseToJsonElement(responseBody).jsonObject
+                val ordersArray = jsonRoot["Orders"]?.jsonArray ?: JsonArray(emptyList())
 
-                // TODO: Parse actual response format
-                // For now, return empty list
-                // You'll need to inspect the actual response structure and update Order model
-                logger.info { "Retrieved order history" }
-                Result.success(emptyList())
+                val orders = ordersArray.map { element ->
+                    val obj = element.jsonObject
+                    val deliveryTime = obj["DeliveryTime"]?.jsonObject
+                    val timeStr = if (deliveryTime != null) {
+                        val start = deliveryTime["Start"]?.jsonPrimitive?.contentOrNull ?: ""
+                        val end = deliveryTime["End"]?.jsonPrimitive?.contentOrNull ?: ""
+                        "$start - $end"
+                    } else null
+
+                    Order(
+                        id = obj["Id"]?.jsonPrimitive?.content ?: "",
+                        orderNumber = obj["OrderNumber"]?.jsonPrimitive?.content ?: "",
+                        date = obj["OrderDate"]?.jsonPrimitive?.content ?: "",
+                        status = OrderStatus.fromCode(obj["Status"]?.jsonPrimitive?.intOrNull ?: 0),
+                        totalPrice = obj["Total"]?.jsonPrimitive?.doubleOrNull ?: 0.0,
+                        subTotal = obj["SubTotal"]?.jsonPrimitive?.doubleOrNull ?: 0.0,
+                        deliveryAddress = obj["DeliveryAddress"]?.jsonPrimitive?.contentOrNull,
+                        deliveryTime = timeStr,
+                        isEditable = obj["IsEditable"]?.jsonPrimitive?.booleanOrNull ?: false,
+                        isCancellable = obj["IsCancellable"]?.jsonPrimitive?.booleanOrNull ?: false
+                    )
+                }
+
+                logger.info { "Retrieved ${orders.size} orders" }
+                Result.success(orders)
             } else {
                 val errorBody = response.body?.string() ?: "Unknown error"
                 logger.error { "Get orders failed: ${response.code} - $errorBody" }
