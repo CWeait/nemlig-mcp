@@ -204,6 +204,75 @@ class NemligTools(private val client: NemligClient) {
     }
 
     /**
+     * Get detailed information about a specific order including all line items
+     */
+    suspend fun getOrderDetails(args: JsonObject): JsonElement {
+        logger.info { "Tool called: get_order_details with args: $args" }
+
+        val orderId = args["orderId"]?.jsonPrimitive?.content
+            ?: return buildError("Missing required parameter: orderId")
+
+        return client.getOrderDetails(orderId).fold(
+            onSuccess = { detail ->
+                buildJsonObject {
+                    put("success", true)
+                    putJsonObject("order") {
+                        put("id", detail.id)
+                        put("orderNumber", detail.orderNumber)
+                        put("orderDate", detail.orderDate)
+                        put("status", detail.status.name)
+                        put("total", detail.total)
+                        put("subTotal", detail.subTotal)
+                        put("shippingPrice", detail.shippingPrice)
+                        put("depositPrice", detail.depositPrice)
+                        put("packagingPrice", detail.packagingPrice)
+                        put("couponDiscount", detail.couponDiscount)
+                        put("totalProductDiscount", detail.totalProductDiscount)
+                        put("numberOfProducts", detail.numberOfProducts)
+                        detail.deliveryDate?.let { put("deliveryDate", it) }
+                        if (detail.deliveryTimeStart != null && detail.deliveryTimeEnd != null) {
+                            put("deliveryTime", "${detail.deliveryTimeStart} - ${detail.deliveryTimeEnd}")
+                        }
+                        put("isEditable", detail.isEditable)
+                        put("isCancellable", detail.isCancellable)
+                        put("hasInvoice", detail.hasInvoice)
+                        detail.notes?.let { put("notes", it) }
+
+                        putJsonArray("lines") {
+                            detail.lines.forEach { line ->
+                                addJsonObject {
+                                    put("productNumber", line.productNumber)
+                                    put("productName", line.productName)
+                                    put("groupName", line.groupName)
+                                    put("quantity", line.quantity)
+                                    line.description?.let { put("description", it) }
+                                    put("averageItemPrice", line.averageItemPrice)
+                                    put("amount", line.amount)
+                                    if (line.discountAmount > 0) put("discountAmount", line.discountAmount)
+                                    if (line.soldOut > 0) put("soldOut", line.soldOut)
+                                    line.campaignName?.let { put("campaignName", it) }
+                                }
+                            }
+                        }
+
+                        if (detail.couponLines.isNotEmpty()) {
+                            putJsonArray("couponLines") {
+                                detail.couponLines.forEach { coupon ->
+                                    addJsonObject {
+                                        put("type", coupon.type)
+                                        put("name", coupon.name)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            onFailure = { buildError(it.message ?: "Failed to get order details") }
+        )
+    }
+
+    /**
      * Build an error response
      */
     private fun buildError(message: String): JsonObject {

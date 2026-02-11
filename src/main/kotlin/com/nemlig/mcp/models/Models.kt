@@ -87,6 +87,63 @@ data class OrderItem(
 )
 
 /**
+ * Detailed order with line items, returned by GetOrderHistory/{orderId}
+ */
+@Serializable
+data class OrderDetail(
+    val id: String,
+    val orderNumber: String,
+    val orderDate: String,
+    val status: OrderStatus,
+    val total: Double,
+    val subTotal: Double,
+    val shippingPrice: Double,
+    val depositPrice: Double,
+    val packagingPrice: Double,
+    val couponDiscount: Double,
+    val totalProductDiscount: Double,
+    val numberOfProducts: Int,
+    val deliveryDate: String? = null,
+    val deliveryTimeStart: String? = null,
+    val deliveryTimeEnd: String? = null,
+    val isEditable: Boolean = false,
+    val isCancellable: Boolean = false,
+    val hasInvoice: Boolean = false,
+    val notes: String? = null,
+    val lines: List<OrderLine> = emptyList(),
+    val couponLines: List<CouponLine> = emptyList()
+)
+
+/**
+ * A single product line within an order
+ */
+@Serializable
+data class OrderLine(
+    val productNumber: String,
+    val productName: String,
+    val groupName: String,
+    val quantity: Int,
+    val description: String? = null,
+    val averageItemPrice: Double,
+    val amount: Double,
+    val discountAmount: Double = 0.0,
+    val isProductLine: Boolean = true,
+    val isDepositLine: Boolean = false,
+    val campaignName: String? = null,
+    val soldOut: Int = 0
+)
+
+/**
+ * Coupon line within an order
+ */
+@Serializable
+data class CouponLine(
+    val type: String,
+    val name: String,
+    val couponNumber: String
+)
+
+/**
  * Order status enum
  */
 @Serializable

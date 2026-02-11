@@ -422,6 +422,147 @@ class NemligClient(private val config: NemligConfig) {
     }
 
     /**
+     * Get detailed order with line items
+     * Endpoint: GET /v2/order/GetOrderHistory/{orderId}
+     */
+    suspend fun getOrderDetails(orderId: String): Result<OrderDetail> {
+        logger.info { "Getting order details: orderId=$orderId" }
+
+        return try {
+            val url = "${config.apiUrl}/v2/order/GetOrderHistory/$orderId".toHttpUrl()
+            val request = buildAuthenticatedRequest(url)
+            logger.debug { "Get order details request: ${request.url}" }
+            val response = client.newCall(request).execute()
+
+            if (response.isSuccessful) {
+                val responseBody = response.body?.string() ?: ""
+                val obj = json.parseToJsonElement(responseBody).jsonObject
+
+                val deliveryTime = obj["DeliveryTime"]?.jsonObject
+                val linesArray = obj["Lines"]?.jsonArray ?: JsonArray(emptyList())
+                val couponArray = obj["CouponLines"]?.jsonArray ?: JsonArray(emptyList())
+
+                val lines = linesArray.map { element ->
+                    val line = element.jsonObject
+                    OrderLine(
+                        productNumber = line["ProductNumber"]?.jsonPrimitive?.content ?: "",
+                        productName = line["ProductName"]?.jsonPrimitive?.content ?: "",
+                        groupName = line["GroupName"]?.jsonPrimitive?.content ?: "",
+                        quantity = line["Quantity"]?.jsonPrimitive?.intOrNull ?: 0,
+                        description = line["Description"]?.jsonPrimitive?.contentOrNull,
+                        averageItemPrice = line["AverageItemPrice"]?.jsonPrimitive?.doubleOrNull ?: 0.0,
+                        amount = line["Amount"]?.jsonPrimitive?.doubleOrNull ?: 0.0,
+                        discountAmount = line["DiscountAmount"]?.jsonPrimitive?.doubleOrNull ?: 0.0,
+                        isProductLine = line["IsProductLine"]?.jsonPrimitive?.booleanOrNull ?: true,
+                        isDepositLine = line["IsDepositLine"]?.jsonPrimitive?.booleanOrNull ?: false,
+                        campaignName = line["CampaignName"]?.jsonPrimitive?.contentOrNull,
+                        soldOut = line["SoldOut"]?.jsonPrimitive?.intOrNull ?: 0
+                    )
+                }
+
+                val couponLines = couponArray.map { element ->
+                    val coupon = element.jsonObject
+                    CouponLine(
+                        type = coupon["Type"]?.jsonPrimitive?.content ?: "",
+                        name = coupon["Name"]?.jsonPrimitive?.content ?: "",
+                        couponNumber = coupon["CouponNumber"]?.jsonPrimitive?.content ?: ""
+                    )
+                }
+
+                val orderDetail = OrderDetail(
+                    id = obj["Id"]?.jsonPrimitive?.content ?: orderId,
+                    orderNumber = obj["OrderNumber"]?.jsonPrimitive?.content ?: "",
+                    orderDate = obj["OrderDate"]?.jsonPrimitive?.content ?: "",
+                    status = OrderStatus.fromCode(obj["Status"]?.jsonPrimitive?.intOrNull ?: 0),
+                    total = obj["Total"]?.jsonPrimitive?.doubleOrNull ?: 0.0,
+                    subTotal = obj["SubTotal"]?.jsonPrimitive?.doubleOrNull ?: 0.0,
+                    shippingPrice = obj["ShippingPrice"]?.jsonPrimitive?.doubleOrNull ?: 0.0,
+                    depositPrice = obj["DepositPrice"]?.jsonPrimitive?.doubleOrNull ?: 0.0,
+                    packagingPrice = obj["PackagingPrice"]?.jsonPrimitive?.doubleOrNull ?: 0.0,
+                    couponDiscount = obj["CouponDiscount"]?.jsonPrimitive?.doubleOrNull ?: 0.0,
+                    totalProductDiscount = obj["TotalProductDiscount"]?.jsonPrimitive?.doubleOrNull ?: 0.0,
+                    numberOfProducts = obj["NumberOfProducts"]?.jsonPrimitive?.intOrNull ?: 0,
+                    deliveryDate = obj["DeliveryDate"]?.jsonPrimitive?.contentOrNull,
+                    deliveryTimeStart = deliveryTime?.get("Start")?.jsonPrimitive?.contentOrNull,
+                    deliveryTimeEnd = deliveryTime?.get("End")?.jsonPrimitive?.contentOrNull,
+                    isEditable = obj["IsEditable"]?.jsonPrimitive?.booleanOrNull ?: false,
+                    isCancellable = obj["IsCancellable"]?.jsonPrimitive?.booleanOrNull ?: false,
+                    hasInvoice = obj["HasInvoice"]?.jsonPrimitive?.booleanOrNull ?: false,
+                    notes = obj["Notes"]?.jsonPrimitive?.contentOrNull?.ifBlank { null },
+                    lines = lines,
+                    couponLines = couponLines
+                )
+
+                logger.info { "Order detail retrieved: ${orderDetail.lines.size} lines, total ${orderDetail.total} kr" }
+                Result.success(orderDetail)
+            } else {
+                val errorBody = response.body?.string() ?: "Unknown error"
+                logger.error { "Get order details failed: ${response.code} - $errorBody" }
+                Result.failure(IOException("Get order details failed: ${response.message}"))
+            }
+        } catch (e: Exception) {
+            logger.error(e) { "Get order details error" }
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Probe order detail endpoints to discover the right one
+     * Temporary - for endpoint discovery only
+     */
+    suspend fun probeOrderDetail(orderId: String, orderNumber: String) {
+        val candidates = listOf(
+            "order/GetPreviousOrderDetails?orderId=$orderId",
+            "order/GetPreviousOrderDetails?orderNumber=$orderNumber",
+            "order/GetPreviousOrder?orderId=$orderId",
+            "order/GetFullOrderHistory?skip=0&take=1",
+            "order/GetOrderProduct?orderId=$orderId",
+            "order/GetOrderProducts?orderId=$orderId",
+            "basket/GetPreviousOrder?orderId=$orderId",
+            "basket/GetPreviousOrder?orderNumber=$orderNumber",
+            "basket/RepeatOrder?orderId=$orderId"
+        )
+
+        for (candidate in candidates) {
+            val url = "${config.apiUrl}/$candidate".toHttpUrl()
+            val request = buildAuthenticatedRequest(url)
+            val response = client.newCall(request).execute()
+            val body = response.body?.string() ?: ""
+            if (response.isSuccessful && !body.contains("Not-found") && body.length > 10) {
+                println("HIT GET $candidate -> ${response.code} (${body.length} bytes)")
+                println("  Response: ${body.take(500)}")
+            } else {
+                println("MISS GET $candidate -> ${response.code}")
+            }
+        }
+
+        // Also try POST variants
+        val postCandidates = listOf(
+            "order/GetOrderDetails",
+            "order/GetOrder",
+            "order/GetOrderLines"
+        )
+        for (candidate in postCandidates) {
+            for (payload in listOf("""{"orderId":$orderId}""", """{"orderNumber":"$orderNumber"}""", """{"Id":$orderId}""")) {
+                val url = "${config.apiUrl}/$candidate".toHttpUrl()
+                val request = Request.Builder()
+                    .url(url)
+                    .post(payload.toRequestBody("application/json".toMediaType()))
+                    .addHeader("Accept", "application/json")
+                    .build()
+                val response = client.newCall(request).execute()
+                val body = response.body?.string() ?: ""
+                if (response.isSuccessful && !body.contains("Not-found") && body.length > 10) {
+                    println("HIT POST $candidate ($payload) -> ${response.code} (${body.length} bytes)")
+                    println("  Response: ${body.take(500)}")
+                } else {
+                    println("MISS POST $candidate ($payload) -> ${response.code}")
+                }
+            }
+        }
+    }
+
+    /**
      * Parse a basket/cart response into a Cart model
      * Used by getCart, addToCart, and removeFromCart — they all return the same response format
      */

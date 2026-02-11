@@ -164,7 +164,24 @@ fun main() = runBlocking {
         CallToolResult(content = listOf(TextContent(result.toString())))
     }
 
-    logger.info { "Registered ${6} tools, starting stdio transport..." }
+    server.addTool(
+        name = "get_order_details",
+        description = "Get detailed information about a specific order including all product lines, quantities, prices, discounts, delivery info, and coupon details. Use the order ID from get_order_history.",
+        inputSchema = ToolSchema(
+            properties = buildJsonObject {
+                putJsonObject("orderId") {
+                    put("type", "string")
+                    put("description", "The unique order ID (e.g., '85754806'). Get this from get_order_history results.")
+                }
+            },
+            required = listOf("orderId"),
+        ),
+    ) { request ->
+        val result = tools.getOrderDetails(request.arguments ?: JsonObject(emptyMap()))
+        CallToolResult(content = listOf(TextContent(result.toString())))
+    }
+
+    logger.info { "Registered ${7} tools, starting stdio transport..." }
 
     // Start stdio transport
     val transport = StdioServerTransport(
