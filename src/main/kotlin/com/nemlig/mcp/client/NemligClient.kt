@@ -422,16 +422,6 @@ class NemligClient(private val config: NemligConfig) {
     }
 
     /**
-     * Get available delivery slots
-     * TODO: API endpoint not yet discovered - needs network traffic inspection
-     */
-    suspend fun getDeliverySlots(): Result<List<DeliverySlot>> {
-        logger.info { "Getting delivery slots" }
-
-        return Result.failure(IOException("Delivery slots endpoint not yet implemented"))
-    }
-
-    /**
      * Parse a basket/cart response into a Cart model
      * Used by getCart, addToCart, and removeFromCart — they all return the same response format
      */
