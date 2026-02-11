@@ -29,22 +29,33 @@ fun main() = runBlocking {
 
     // Test 2: Search Products
     println("Test 2: Searching for 'mælk' (milk)")
+    var firstProductId: String? = null
     client.searchProducts("mælk", limit = 5).fold(
         onSuccess = {
             println("✅ Search successful")
             println("   Query: ${it.query}")
             println("   Total results: ${it.totalResults}")
-            println("   Products returned: ${it.products.size}\n")
+            println("   Products returned: ${it.products.size}")
+            if (it.products.isNotEmpty()) {
+                firstProductId = it.products.first().id
+                it.products.forEach { p ->
+                    println("   - [${p.id}] ${p.name} (${p.price} kr) - ${p.brand}")
+                }
+            }
+            println()
         },
         onFailure = { println("❌ Search failed: ${it.message}\n") }
     )
 
     // Test 3: Get Orders
     println("Test 3: Getting order history")
-    client.getOrders(limit = 5).fold(
+    client.getOrders(limit = 3).fold(
         onSuccess = {
-            println("✅ Orders retrieved")
-            println("   Orders count: ${it.size}\n")
+            println("✅ Orders retrieved: ${it.size}")
+            it.forEach { o ->
+                println("   - #${o.orderNumber} ${o.date} - ${o.totalPrice} kr (${o.status})")
+            }
+            println()
         },
         onFailure = { println("❌ Get orders failed: ${it.message}\n") }
     )
