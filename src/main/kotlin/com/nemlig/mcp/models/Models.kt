@@ -63,11 +63,16 @@ data class CartItem(
 @Serializable
 data class Order(
     val id: String,
+    val orderNumber: String,
     val date: String,
     val status: OrderStatus,
-    val items: List<OrderItem>,
     val totalPrice: Double,
-    val deliverySlot: DeliverySlot? = null
+    val subTotal: Double = 0.0,
+    val deliveryAddress: String? = null,
+    val deliveryTime: String? = null,
+    val isEditable: Boolean = false,
+    val isCancellable: Boolean = false,
+    val items: List<OrderItem> = emptyList()
 )
 
 /**
@@ -85,12 +90,16 @@ data class OrderItem(
  * Order status enum
  */
 @Serializable
-enum class OrderStatus {
-    PENDING,
-    CONFIRMED,
-    PROCESSING,
-    DELIVERED,
-    CANCELLED
+enum class OrderStatus(val code: Int) {
+    PENDING(0),
+    CONFIRMED(1),
+    PROCESSING(2),
+    DELIVERED(3),
+    CANCELLED(4);
+
+    companion object {
+        fun fromCode(code: Int): OrderStatus = entries.find { it.code == code } ?: PENDING
+    }
 }
 
 /**
