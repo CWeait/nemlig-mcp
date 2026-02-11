@@ -2,10 +2,10 @@ package com.nemlig.mcp.client
 
 import com.nemlig.mcp.config.NemligConfig
 import com.nemlig.mcp.models.*
-import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
 import mu.KotlinLogging
 import okhttp3.*
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
@@ -173,7 +173,7 @@ class NemligClient(private val config: NemligConfig) {
         // TODO: Implement actual product details endpoint
         return try {
             val url = "${config.apiUrl}/products/$productId"
-            val request = buildAuthenticatedRequest(HttpUrl.parse(url)!!)
+            val request = buildAuthenticatedRequest(url.toHttpUrl())
             val response = client.newCall(request).execute()
 
             if (response.isSuccessful) {

@@ -29,8 +29,7 @@ fun main() = runBlocking {
 
     // Test 2: Search Products
     println("Test 2: Searching for 'mælk' (milk)")
-    val searchResult = client.searchProducts("mælk", limit = 5)
-    searchResult.fold(
+    client.searchProducts("mælk", limit = 5).fold(
         onSuccess = {
             println("✅ Search successful")
             println("   Query: ${it.query}")
@@ -42,8 +41,7 @@ fun main() = runBlocking {
 
     // Test 3: Get Orders
     println("Test 3: Getting order history")
-    val ordersResult = client.getOrders(limit = 5)
-    ordersResult.fold(
+    client.getOrders(limit = 5).fold(
         onSuccess = {
             println("✅ Orders retrieved")
             println("   Orders count: ${it.size}\n")

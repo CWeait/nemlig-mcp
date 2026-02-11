@@ -23,13 +23,13 @@ class NemligTools(private val client: NemligClient) {
         val limit = args["limit"]?.jsonPrimitive?.intOrNull ?: 20
         val page = args["page"]?.jsonPrimitive?.intOrNull ?: 1
 
-        return when (val result = client.searchProducts(query, limit, page)) {
-            is Result.Success -> {
+        return client.searchProducts(query, limit, page).fold(
+            onSuccess = { searchResult ->
                 buildJsonObject {
                     put("success", true)
                     put("query", query)
                     putJsonArray("products") {
-                        result.value.products.forEach { product ->
+                        searchResult.products.forEach { product ->
                             addJsonObject {
                                 put("id", product.id)
                                 put("name", product.name)
@@ -41,12 +41,12 @@ class NemligTools(private val client: NemligClient) {
                             }
                         }
                     }
-                    put("totalResults", result.value.totalResults)
+                    put("totalResults", searchResult.totalResults)
                     put("page", page)
                 }
-            }
-            is Result.Failure -> buildError(result.exception.message ?: "Search failed")
-        }
+            },
+            onFailure = { buildError(it.message ?: "Search failed") }
+        )
     }
 
     /**
@@ -58,9 +58,8 @@ class NemligTools(private val client: NemligClient) {
         val productId = args["productId"]?.jsonPrimitive?.content
             ?: return buildError("Missing required parameter: productId")
 
-        return when (val result = client.getProduct(productId)) {
-            is Result.Success -> {
-                val product = result.value
+        return client.getProduct(productId).fold(
+            onSuccess = { product ->
                 buildJsonObject {
                     put("success", true)
                     putJsonObject("product") {
@@ -85,9 +84,9 @@ class NemligTools(private val client: NemligClient) {
                         }
                     }
                 }
-            }
-            is Result.Failure -> buildError(result.exception.message ?: "Failed to get product")
-        }
+            },
+            onFailure = { buildError(it.message ?: "Failed to get product") }
+        )
     }
 
     /**
@@ -96,9 +95,8 @@ class NemligTools(private val client: NemligClient) {
     suspend fun viewCart(args: JsonObject): JsonElement {
         logger.info { "Tool called: view_cart" }
 
-        return when (val result = client.getCart()) {
-            is Result.Success -> {
-                val cart = result.value
+        return client.getCart().fold(
+            onSuccess = { cart ->
                 buildJsonObject {
                     put("success", true)
                     putJsonObject("cart") {
@@ -117,9 +115,9 @@ class NemligTools(private val client: NemligClient) {
                         }
                     }
                 }
-            }
-            is Result.Failure -> buildError(result.exception.message ?: "Failed to get cart")
-        }
+            },
+            onFailure = { buildError(it.message ?: "Failed to get cart") }
+        )
     }
 
     /**
@@ -137,17 +135,17 @@ class NemligTools(private val client: NemligClient) {
             return buildError("Quantity must be at least 1")
         }
 
-        return when (val result = client.addToCart(productId, quantity)) {
-            is Result.Success -> {
+        return client.addToCart(productId, quantity).fold(
+            onSuccess = {
                 buildJsonObject {
                     put("success", true)
                     put("message", "Added $quantity item(s) to cart")
                     put("productId", productId)
                     put("quantity", quantity)
                 }
-            }
-            is Result.Failure -> buildError(result.exception.message ?: "Failed to add to cart")
-        }
+            },
+            onFailure = { buildError(it.message ?: "Failed to add to cart") }
+        )
     }
 
     /**
@@ -159,16 +157,16 @@ class NemligTools(private val client: NemligClient) {
         val productId = args["productId"]?.jsonPrimitive?.content
             ?: return buildError("Missing required parameter: productId")
 
-        return when (val result = client.removeFromCart(productId)) {
-            is Result.Success -> {
+        return client.removeFromCart(productId).fold(
+            onSuccess = {
                 buildJsonObject {
                     put("success", true)
                     put("message", "Removed item from cart")
                     put("productId", productId)
                 }
-            }
-            is Result.Failure -> buildError(result.exception.message ?: "Failed to remove from cart")
-        }
+            },
+            onFailure = { buildError(it.message ?: "Failed to remove from cart") }
+        )
     }
 
     /**
@@ -179,12 +177,12 @@ class NemligTools(private val client: NemligClient) {
 
         val limit = args["limit"]?.jsonPrimitive?.intOrNull ?: 10
 
-        return when (val result = client.getOrders(limit)) {
-            is Result.Success -> {
+        return client.getOrders(limit).fold(
+            onSuccess = { orders ->
                 buildJsonObject {
                     put("success", true)
                     putJsonArray("orders") {
-                        result.value.forEach { order ->
+                        orders.forEach { order ->
                             addJsonObject {
                                 put("id", order.id)
                                 put("date", order.date)
@@ -203,9 +201,9 @@ class NemligTools(private val client: NemligClient) {
                         }
                     }
                 }
-            }
-            is Result.Failure -> buildError(result.exception.message ?: "Failed to get orders")
-        }
+            },
+            onFailure = { buildError(it.message ?: "Failed to get orders") }
+        )
     }
 
     /**
@@ -214,12 +212,12 @@ class NemligTools(private val client: NemligClient) {
     suspend fun getDeliverySlots(args: JsonObject): JsonElement {
         logger.info { "Tool called: get_delivery_slots" }
 
-        return when (val result = client.getDeliverySlots()) {
-            is Result.Success -> {
+        return client.getDeliverySlots().fold(
+            onSuccess = { slots ->
                 buildJsonObject {
                     put("success", true)
                     putJsonArray("slots") {
-                        result.value.forEach { slot ->
+                        slots.forEach { slot ->
                             addJsonObject {
                                 put("id", slot.id)
                                 put("date", slot.date)
@@ -231,9 +229,9 @@ class NemligTools(private val client: NemligClient) {
                         }
                     }
                 }
-            }
-            is Result.Failure -> buildError(result.exception.message ?: "Failed to get delivery slots")
-        }
+            },
+            onFailure = { buildError(it.message ?: "Failed to get delivery slots") }
+        )
     }
 
     /**
@@ -245,22 +243,4 @@ class NemligTools(private val client: NemligClient) {
             put("error", message)
         }
     }
-}
-
-/**
- * Result wrapper for API responses
- */
-sealed class Result<out T> {
-    data class Success<T>(val value: T) : Result<T>()
-    data class Failure(val exception: Exception) : Result<Nothing>()
-}
-
-/**
- * Extension to convert Kotlin Result to custom Result
- */
-fun <T> kotlin.Result<T>.toResult(): Result<T> {
-    return fold(
-        onSuccess = { Result.Success(it) },
-        onFailure = { Result.Failure(it as? Exception ?: Exception(it.message)) }
-    )
 }

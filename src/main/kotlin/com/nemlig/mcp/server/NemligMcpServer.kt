@@ -3,8 +3,6 @@ package com.nemlig.mcp.server
 import com.nemlig.mcp.client.NemligClient
 import com.nemlig.mcp.config.Config
 import com.nemlig.mcp.tools.NemligTools
-import io.modelcontextprotocol.kotlin.sdk.*
-import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*
 import mu.KotlinLogging
 
