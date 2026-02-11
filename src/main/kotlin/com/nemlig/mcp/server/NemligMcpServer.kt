@@ -3,8 +3,7 @@ package com.nemlig.mcp.server
 import com.nemlig.mcp.client.NemligClient
 import com.nemlig.mcp.config.Config
 import com.nemlig.mcp.tools.NemligTools
-import io.modelcontextprotocol.kotlin.sdk.*
-import kotlinx.coroutines.runBlocking
+import com.nemlig.mcp.tools.Result
 import kotlinx.serialization.json.*
 import mu.KotlinLogging
 
@@ -190,10 +189,10 @@ class NemligMcpServer(private val config: Config) {
         // Authenticate if credentials are provided
         if (!config.nemlig.username.isNullOrBlank() && !config.nemlig.password.isNullOrBlank()) {
             logger.info { "Authenticating with Nemlig API..." }
-            client.authenticate().fold(
-                onSuccess = { logger.info { "Authentication successful" } },
-                onFailure = { logger.warn { "Authentication failed: ${it.message}" } }
-            )
+            when (val result = client.authenticate()) {
+                is Result.Success -> logger.info { "Authentication successful" }
+                is Result.Failure -> logger.warn { "Authentication failed: ${result.exception.message}" }
+            }
         } else {
             logger.warn { "No credentials provided - some features may not work" }
         }
