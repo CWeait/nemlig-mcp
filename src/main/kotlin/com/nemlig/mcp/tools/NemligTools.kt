@@ -204,34 +204,6 @@ class NemligTools(private val client: NemligClient) {
     }
 
     /**
-     * Get available delivery time slots
-     */
-    suspend fun getDeliverySlots(args: JsonObject): JsonElement {
-        logger.info { "Tool called: get_delivery_slots" }
-
-        return client.getDeliverySlots().fold(
-            onSuccess = { slots ->
-                buildJsonObject {
-                    put("success", true)
-                    putJsonArray("slots") {
-                        slots.forEach { slot ->
-                            addJsonObject {
-                                put("id", slot.id)
-                                put("date", slot.date)
-                                put("timeFrom", slot.timeFrom)
-                                put("timeTo", slot.timeTo)
-                                put("available", slot.available)
-                                put("price", slot.price)
-                            }
-                        }
-                    }
-                }
-            },
-            onFailure = { buildError(it.message ?: "Failed to get delivery slots") }
-        )
-    }
-
-    /**
      * Build an error response
      */
     private fun buildError(message: String): JsonObject {

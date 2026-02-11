@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
-    <!-- Console appender -->
-    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <!-- Console appender writing to STDERR (stdout is reserved for MCP JSON-RPC) -->
+    <appender name="STDERR" class="ch.qos.logback.core.ConsoleAppender">
+        <target>System.err</target>
         <encoder>
             <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
         </encoder>
@@ -21,7 +22,7 @@
 
     <!-- Root logger -->
     <root level="${LOG_LEVEL:-INFO}">
-        <appender-ref ref="CONSOLE" />
+        <appender-ref ref="STDERR" />
         <appender-ref ref="FILE" />
     </root>
 

@@ -60,8 +60,17 @@ object ConfigLoader {
     }
 
     private fun loadEnvFile(): Map<String, String> {
-        val envFile = java.io.File(".env")
-        if (!envFile.exists()) return emptyMap()
+        // Check current working directory first, then next to the JAR
+        val candidates = listOf(
+            java.io.File(".env"),
+            java.io.File(
+                ConfigLoader::class.java.protectionDomain.codeSource?.location?.toURI()?.let {
+                    java.io.File(it).parentFile
+                } ?: return emptyMap(),
+                ".env"
+            )
+        )
+        val envFile = candidates.firstOrNull { it.exists() } ?: return emptyMap()
 
         return envFile.readLines()
             .map { it.trim() }

@@ -1,6 +1,7 @@
 plugins {
     kotlin("jvm") version "2.3.0"
     kotlin("plugin.serialization") version "2.3.0"
+    id("com.gradleup.shadow") version "9.0.0-beta12"
     application
 }
 
@@ -13,7 +14,7 @@ repositories {
 
 dependencies {
     // MCP Kotlin SDK
-    implementation("io.modelcontextprotocol:kotlin-sdk:0.1.0")
+    implementation("io.modelcontextprotocol:kotlin-sdk:0.8.3")
 
     // Kotlinx Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
@@ -25,13 +26,9 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
 
-    // Logging
+    // Logging (logback writes to stderr/file to avoid corrupting stdio transport)
     implementation("io.github.microutils:kotlin-logging-jvm:3.0.5")
     implementation("ch.qos.logback:logback-classic:1.4.14")
-
-    // Configuration
-    implementation("com.sksamuel.hoplite:hoplite-core:2.7.5")
-    implementation("com.sksamuel.hoplite:hoplite-yaml:2.7.5")
 
     // Testing
     testImplementation(kotlin("test"))
