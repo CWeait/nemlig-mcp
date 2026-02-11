@@ -186,26 +186,59 @@ class NemligClient(private val config: NemligConfig) {
 
     /**
      * Get product details by ID
+     * Uses search endpoint filtered by product ID since there's no dedicated product detail endpoint
      */
     suspend fun getProduct(productId: String): Result<Product> {
         logger.info { "Getting product details: $productId" }
 
-        // TODO: Implement actual product details endpoint
         return try {
-            val url = "${config.apiUrl}/products/$productId"
-            val request = buildAuthenticatedRequest(url.toHttpUrl())
+            val url = HttpUrl.Builder()
+                .scheme("https")
+                .host("www.nemlig.com")
+                .addPathSegment("webapi")
+                .addPathSegment("s")
+                .addPathSegment("0")
+                .addPathSegment("1")
+                .addPathSegment("0")
+                .addPathSegment("Search")
+                .addPathSegment("Search")
+                .addQueryParameter("query", productId)
+                .addQueryParameter("take", "1")
+                .build()
+
+            val request = buildAuthenticatedRequest(url)
             val response = client.newCall(request).execute()
 
             if (response.isSuccessful) {
-                // For now, return mock data
-                val mockProduct = Product(
-                    id = productId,
-                    name = "Mock Product",
-                    price = 0.0,
-                    inStock = true
-                )
-                Result.success(mockProduct)
+                val responseBody = response.body?.string() ?: ""
+                val jsonRoot = json.parseToJsonElement(responseBody).jsonObject
+                val productsArray = jsonRoot["Products"]?.jsonObject
+                    ?.get("Products")?.jsonArray ?: JsonArray(emptyList())
+
+                val match = productsArray.firstOrNull { element ->
+                    element.jsonObject["Id"]?.jsonPrimitive?.content == productId
+                }?.jsonObject
+
+                if (match != null) {
+                    val availability = match["Availability"]?.jsonObject
+                    val product = Product(
+                        id = match["Id"]?.jsonPrimitive?.content ?: "",
+                        name = match["Name"]?.jsonPrimitive?.content ?: "",
+                        price = match["Price"]?.jsonPrimitive?.doubleOrNull ?: 0.0,
+                        unit = match["UnitPriceLabel"]?.jsonPrimitive?.contentOrNull,
+                        brand = match["Brand"]?.jsonPrimitive?.contentOrNull,
+                        category = match["Category"]?.jsonPrimitive?.contentOrNull,
+                        imageUrl = match["PrimaryImage"]?.jsonPrimitive?.contentOrNull,
+                        description = match["Description"]?.jsonPrimitive?.contentOrNull,
+                        inStock = availability?.get("IsAvailableInStock")?.jsonPrimitive?.booleanOrNull ?: true
+                    )
+                    Result.success(product)
+                } else {
+                    Result.failure(IOException("Product not found: $productId"))
+                }
             } else {
+                val errorBody = response.body?.string() ?: "Unknown error"
+                logger.error { "Get product failed: ${response.code} - $errorBody" }
                 Result.failure(IOException("Failed to get product: ${response.message}"))
             }
         } catch (e: Exception) {
@@ -216,18 +249,26 @@ class NemligClient(private val config: NemligConfig) {
 
     /**
      * Get current shopping cart
+     * Endpoint: GET /basket/GetBasket
      */
     suspend fun getCart(): Result<Cart> {
         logger.info { "Getting cart" }
 
-        // TODO: Implement actual cart endpoint
         return try {
-            val mockCart = Cart(
-                items = emptyList(),
-                totalPrice = 0.0,
-                itemCount = 0
-            )
-            Result.success(mockCart)
+            val url = "${config.apiUrl}/basket/GetBasket".toHttpUrl()
+            val request = buildAuthenticatedRequest(url)
+            val response = client.newCall(request).execute()
+
+            if (response.isSuccessful) {
+                val responseBody = response.body?.string() ?: ""
+                val cart = parseBasketResponse(responseBody)
+                logger.info { "Cart retrieved: ${cart.itemCount} items, ${cart.totalPrice} kr" }
+                Result.success(cart)
+            } else {
+                val errorBody = response.body?.string() ?: "Unknown error"
+                logger.error { "Get cart failed: ${response.code} - $errorBody" }
+                Result.failure(IOException("Get cart failed: ${response.message}"))
+            }
         } catch (e: Exception) {
             logger.error(e) { "Get cart error" }
             Result.failure(e)
@@ -262,11 +303,9 @@ class NemligClient(private val config: NemligConfig) {
 
             if (response.isSuccessful) {
                 val responseBody = response.body?.string() ?: ""
-                logger.debug { "Add to cart response: $responseBody" }
-                logger.info { "Successfully added $quantity item(s) to cart" }
-
-                // TODO: Parse actual cart response and return updated cart
-                Result.success(Cart(emptyList(), 0.0, 0))
+                val cart = parseBasketResponse(responseBody)
+                logger.info { "Successfully added $quantity item(s) to cart: ${cart.itemCount} items, ${cart.totalPrice} kr" }
+                Result.success(cart)
             } else {
                 val errorBody = response.body?.string() ?: "Unknown error"
                 logger.error { "Add to cart failed: ${response.code} - $errorBody" }
@@ -280,13 +319,37 @@ class NemligClient(private val config: NemligConfig) {
 
     /**
      * Remove item from cart
+     * Uses AddToBasket with quantity 0 to remove the item
      */
     suspend fun removeFromCart(productId: String): Result<Cart> {
         logger.info { "Removing from cart: $productId" }
 
-        // TODO: Implement actual remove from cart endpoint
         return try {
-            Result.success(Cart(emptyList(), 0.0, 0))
+            val requestBody = """
+                {
+                    "productId": "$productId",
+                    "quantity": 0
+                }
+            """.trimIndent()
+
+            val request = Request.Builder()
+                .url("${config.apiUrl}/basket/AddToBasket")
+                .post(requestBody.toRequestBody("application/json".toMediaType()))
+                .addHeader("Accept", "application/json")
+                .build()
+
+            val response = client.newCall(request).execute()
+
+            if (response.isSuccessful) {
+                val responseBody = response.body?.string() ?: ""
+                val cart = parseBasketResponse(responseBody)
+                logger.info { "Successfully removed item from cart: ${cart.itemCount} items, ${cart.totalPrice} kr" }
+                Result.success(cart)
+            } else {
+                val errorBody = response.body?.string() ?: "Unknown error"
+                logger.error { "Remove from cart failed: ${response.code} - $errorBody" }
+                Result.failure(IOException("Remove from cart failed: ${response.message}"))
+            }
         } catch (e: Exception) {
             logger.error(e) { "Remove from cart error" }
             Result.failure(e)
@@ -360,17 +423,40 @@ class NemligClient(private val config: NemligConfig) {
 
     /**
      * Get available delivery slots
+     * TODO: API endpoint not yet discovered - needs network traffic inspection
      */
     suspend fun getDeliverySlots(): Result<List<DeliverySlot>> {
         logger.info { "Getting delivery slots" }
 
-        // TODO: Implement actual delivery slots endpoint
-        return try {
-            Result.success(emptyList())
-        } catch (e: Exception) {
-            logger.error(e) { "Get delivery slots error" }
-            Result.failure(e)
+        return Result.failure(IOException("Delivery slots endpoint not yet implemented"))
+    }
+
+    /**
+     * Parse a basket/cart response into a Cart model
+     * Used by getCart, addToCart, and removeFromCart — they all return the same response format
+     */
+    private fun parseBasketResponse(responseBody: String): Cart {
+        val jsonRoot = json.parseToJsonElement(responseBody).jsonObject
+        val lines = jsonRoot["Lines"]?.jsonArray ?: JsonArray(emptyList())
+
+        val items = lines.map { element ->
+            val obj = element.jsonObject
+            val quantity = obj["Quantity"]?.jsonPrimitive?.intOrNull ?: 0
+            val price = obj["Price"]?.jsonPrimitive?.doubleOrNull ?: 0.0
+            CartItem(
+                productId = obj["Id"]?.jsonPrimitive?.content ?: "",
+                productName = obj["Name"]?.jsonPrimitive?.content ?: "",
+                quantity = quantity,
+                pricePerUnit = price,
+                totalPrice = price * quantity
+            )
         }
+
+        return Cart(
+            items = items,
+            totalPrice = jsonRoot["TotalPrice"]?.jsonPrimitive?.doubleOrNull ?: 0.0,
+            itemCount = jsonRoot["NumberOfProducts"]?.jsonPrimitive?.intOrNull ?: 0
+        )
     }
 
     /**
