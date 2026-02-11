@@ -42,20 +42,34 @@ data class ServerConfig(
  */
 object ConfigLoader {
     fun load(): Config {
-        // Load from environment variables with defaults
+        val env = loadEnvFile() + System.getenv()
+
         return Config(
             nemlig = NemligConfig(
-                apiUrl = System.getenv("NEMLIG_API_URL")
-                    ?: "https://www.nemlig.com/webapi",
-                username = System.getenv("NEMLIG_USERNAME"),
-                password = System.getenv("NEMLIG_PASSWORD"),
-                timeout = System.getenv("NEMLIG_TIMEOUT")?.toLongOrNull() ?: 30000L
+                apiUrl = env["NEMLIG_API_URL"] ?: "https://www.nemlig.com/webapi",
+                username = env["NEMLIG_USERNAME"],
+                password = env["NEMLIG_PASSWORD"],
+                timeout = env["NEMLIG_TIMEOUT"]?.toLongOrNull() ?: 30000L
             ),
             server = ServerConfig(
-                name = System.getenv("SERVER_NAME") ?: "nemlig-mcp",
-                version = System.getenv("SERVER_VERSION") ?: "1.0.0",
-                logLevel = System.getenv("LOG_LEVEL") ?: "INFO"
+                name = env["SERVER_NAME"] ?: "nemlig-mcp",
+                version = env["SERVER_VERSION"] ?: "1.0.0",
+                logLevel = env["LOG_LEVEL"] ?: "INFO"
             )
         )
+    }
+
+    private fun loadEnvFile(): Map<String, String> {
+        val envFile = java.io.File(".env")
+        if (!envFile.exists()) return emptyMap()
+
+        return envFile.readLines()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() && !it.startsWith("#") && it.contains('=') }
+            .associate { line ->
+                val key = line.substringBefore('=').trim()
+                val value = line.substringAfter('=').trim().removeSurrounding("\"")
+                key to value
+            }
     }
 }
